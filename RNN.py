@@ -77,4 +77,4 @@ for x in [1,2,1,2]:         # For our input list
     h = tanh(Wxh * x + Whh * h_prev + bh)   # Finding the hidden layer output
     y = Why * h + by                        # Finding the output layer output
     print(f"input {x} -> output {y:.3f}")   # Showcasing the input with the output
-    h_prev = h                              # Assinging the value of the current state as the previous state variable that can be used by the next state
+    h_prev = h                              # Assinging the value of the current state to the previous state variable that can be used by the next state
