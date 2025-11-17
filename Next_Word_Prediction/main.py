@@ -82,7 +82,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 # -------------------------------------------------------------
 # 5️⃣ Train the model
 # -------------------------------------------------------------
-epochs = 2000
+epochs = 10000
 print("\n🚀 Training started...\n")
 for epoch in range(epochs):
     total_loss = 0
