@@ -1,6 +1,5 @@
 # -------------------------------------------------------------
-# 🧠 Simple Email Next-Word Prediction using RNN (PyTorch)
-# Loads dataset from "data/training_data.txt"
+# 🧠 Email Next-Word Prediction using Vanilla GRU (PyTorch)
 # -------------------------------------------------------------
 import torch
 import torch.nn as nn
@@ -10,9 +9,9 @@ import numpy as np
 import os
 
 # -------------------------------------------------------------
-# 1️⃣ Load dataset from external file
+# 1️⃣ Load dataset
 # -------------------------------------------------------------
-DATA_PATH = "data/training_data.txt"
+DATA_PATH = "Next_Word_Prediction/data/data.txt"
 
 if not os.path.exists(DATA_PATH):
     raise FileNotFoundError(f"Dataset not found at {DATA_PATH}")
@@ -54,27 +53,27 @@ dataset = TensorDataset(X_tensor, Y_tensor)
 loader = DataLoader(dataset, batch_size=16, shuffle=True)
 
 # -------------------------------------------------------------
-# 3️⃣ Define the RNN model
+# 3️⃣ Define the GRU model
 # -------------------------------------------------------------
-class EmailRNN(nn.Module):
+class EmailGRU(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embed_size)
-        self.rnn = nn.RNN(embed_size, hidden_size, batch_first=True, nonlinearity='tanh')
+        self.gru = nn.GRU(embed_size, hidden_size, batch_first=True)
         self.fc = nn.Linear(hidden_size, vocab_size)
     
     def forward(self, x, hidden=None):
         embeds = self.embedding(x)
-        out, hidden = self.rnn(embeds, hidden)
-        out = self.fc(out[:, -1, :])  # only last time step output
-        return out
+        out, hidden = self.gru(embeds, hidden)
+        out = self.fc(out[:, -1, :])  # ✅ use last hidden state
+        return out, hidden
 
 # -------------------------------------------------------------
 # 4️⃣ Initialize model, loss, optimizer
 # -------------------------------------------------------------
 embed_size = 128
 hidden_size = 128
-model = EmailRNN(vocab_size, embed_size, hidden_size)
+model = EmailGRU(vocab_size, embed_size, hidden_size)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -82,13 +81,13 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 # -------------------------------------------------------------
 # 5️⃣ Train the model
 # -------------------------------------------------------------
-epochs = 10000
+epochs = 1000
 print("\n🚀 Training started...\n")
 for epoch in range(epochs):
     total_loss = 0
     for batch_x, batch_y in loader:
         optimizer.zero_grad()
-        output = model(batch_x)
+        output, _ = model(batch_x)
         loss = criterion(output, batch_y)
         loss.backward()
         optimizer.step()
@@ -101,31 +100,38 @@ print("\n✅ Training complete!")
 # -------------------------------------------------------------
 # 6️⃣ Prediction function
 # -------------------------------------------------------------
-def predict_next_word(model, text, top_k=3):
+def predict_next_word(model, text, hidden=None, top_k=3):
     model.eval()
     with torch.no_grad():
         tokens = sentence_to_indices(text.lower())
         if not tokens:
-            return ["⚠️ Unknown words"]
+            return ["⚠️ Unknown words"], hidden
         x = torch.tensor(tokens, dtype=torch.long).unsqueeze(0)
-        output = model(x)
+        output, hidden = model(x, hidden)
         probs = torch.softmax(output, dim=1)
         top_idx = torch.topk(probs, top_k).indices.squeeze(0).tolist()
         predictions = [idx_to_word[i] for i in top_idx]
-    return predictions
+    return predictions, hidden
 
 # -------------------------------------------------------------
-# 7️⃣ Interactive next-word prediction loop
+# 7️⃣ Interactive next-word prediction with context memory
 # -------------------------------------------------------------
-print("\n📨 Email Smart Compose System 🧠")
+print("\n📨 Email Smart Compose System (GRU) 🧠")
 print("Type a few words and get next word suggestions!")
 print("Type 'exit' to quit.\n")
+
+context_words = []
+hidden_state = None
 
 while True:
     text = input("You: ").strip().lower()
     if text == "exit":
         print("👋 Goodbye!")
         break
-    suggestions = predict_next_word(model, text)
+    context_words += text.split()
+    prompt = " ".join(context_words[-10:])  # last 10 words as context
+    suggestions, hidden_state = predict_next_word(model, prompt, hidden_state)
+    # detach hidden state to prevent backprop through entire history
+    if hidden_state is not None:
+        hidden_state = hidden_state.detach()
     print("Suggestions →", suggestions)
-    
